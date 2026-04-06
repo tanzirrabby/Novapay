@@ -1,0 +1,105 @@
+{
+  "title": "NovaPay — System Overview",
+  "uid": "novapay-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "🚨 Ledger Invariant Violations (MUST BE ZERO)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(ledger_invariant_violations_total) or vector(0)",
+          "legendFormat": "Violations"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Transaction Throughput (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(transaction_requests_total[1m]))",
+          "legendFormat": "Transactions/s"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Failed Transaction Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(transaction_failures_total[5m])) / sum(rate(transaction_requests_total[5m]))",
+          "legendFormat": "Failure Rate"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "API Latency p95 per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{service}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "API Latency p99 per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99 {{service}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "HTTP Requests by Service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Ledger Entries Created (rate)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(ledger_entries_created_total[1m])",
+          "legendFormat": "Entries/s"
+        }
+      ]
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {}
+}

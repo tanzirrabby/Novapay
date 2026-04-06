@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers: []
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  - job_name: "account-service"
+    static_configs:
+      - targets: ["account-service:3001"]
+    metrics_path: /metrics
+
+  - job_name: "transaction-service"
+    static_configs:
+      - targets: ["transaction-service:3002"]
+    metrics_path: /metrics
+
+  - job_name: "ledger-service"
+    static_configs:
+      - targets: ["ledger-service:3003"]
+    metrics_path: /metrics
+
+  - job_name: "fx-service"
+    static_configs:
+      - targets: ["fx-service:3004"]
+    metrics_path: /metrics
+
+  - job_name: "payroll-service"
+    static_configs:
+      - targets: ["payroll-service:3005"]
+    metrics_path: /metrics
+
+  - job_name: "admin-service"
+    static_configs:
+      - targets: ["admin-service:3006"]
+    metrics_path: /metrics

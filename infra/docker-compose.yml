@@ -1,0 +1,326 @@
+
+networks:
+  novapay-net:
+    driver: bridge
+
+volumes:
+  account-db-data:
+  transaction-db-data:
+  ledger-db-data:
+  fx-db-data:
+  payroll-db-data:
+  admin-db-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  # ─── Databases ────────────────────────────────────────────────────────────
+  account-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: account_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - account-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d account_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  transaction-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: transaction_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d transaction_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ledger-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ledger_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - ledger-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d ledger_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  fx-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fx_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - fx-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d fx_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  payroll-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: payroll_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - payroll-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d payroll_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  admin-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: admin_db
+      POSTGRES_USER: novapay
+      POSTGRES_PASSWORD: novapay_secret
+    volumes:
+      - admin-db-data:/var/lib/postgresql/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novapay -d admin_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─── Services ─────────────────────────────────────────────────────────────
+  account-service:
+    build:
+      context: ../services/account-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://novapay:novapay_secret@account-db:5432/account_db
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-a2b4c6d8e0f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5f7a9b1c3d5e7f9a1b3}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: account-service
+    depends_on:
+      account-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  transaction-service:
+    build:
+      context: ../services/transaction-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://novapay:novapay_secret@transaction-db:5432/transaction_db
+      REDIS_URL: redis://redis:6379
+      LEDGER_SERVICE_URL: http://ledger-service:3003
+      ACCOUNT_SERVICE_URL: http://account-service:3001
+      FX_SERVICE_URL: http://fx-service:3004
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: transaction-service
+    depends_on:
+      transaction-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ledger-service:
+    build:
+      context: ../services/ledger-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://novapay:novapay_secret@ledger-db:5432/ledger_db
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: ledger-service
+    depends_on:
+      ledger-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fx-service:
+    build:
+      context: ../services/fx-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3004
+      DATABASE_URL: postgresql://novapay:novapay_secret@fx-db:5432/fx_db
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: fx-service
+    depends_on:
+      fx-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payroll-service:
+    build:
+      context: ../services/payroll-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3005
+      DATABASE_URL: postgresql://novapay:novapay_secret@payroll-db:5432/payroll_db
+      REDIS_URL: redis://redis:6379
+      TRANSACTION_SERVICE_URL: http://transaction-service:3002
+      ACCOUNT_SERVICE_URL: http://account-service:3001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: payroll-service
+    depends_on:
+      payroll-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3005/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  admin-service:
+    build:
+      context: ../services/admin-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3006
+      DATABASE_URL: postgresql://novapay:novapay_secret@admin-db:5432/admin_db
+      REDIS_URL: redis://redis:6379
+      ACCOUNT_SERVICE_URL: http://account-service:3001
+      TRANSACTION_SERVICE_URL: http://transaction-service:3002
+      LEDGER_SERVICE_URL: http://ledger-service:3003
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      SERVICE_NAME: admin-service
+    depends_on:
+      admin-db:
+        condition: service_healthy
+    networks:
+      - novapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3006/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── API Gateway ──────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - account-service
+      - transaction-service
+      - ledger-service
+      - fx-service
+      - payroll-service
+      - admin-service
+    networks:
+      - novapay-net
+
+  # ─── Observability ────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    networks:
+      - novapay-net
+
+  prometheus:
+    image: prom/prometheus:v2.49.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - novapay-net
+
+  grafana:
+    image: grafana/grafana:10.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - novapay-net
